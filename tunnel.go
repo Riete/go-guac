@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"strconv"
 
 	"github.com/gorilla/websocket"
 )
@@ -18,55 +17,43 @@ type Tunnel struct {
 	err   error
 }
 
-func (t *Tunnel) Handshake(config *Config) error {
-	config.SetScreen()
+func (t *Tunnel) Handshake(config *HandshakeConfig) error {
 	br := bufio.NewReader(t.guacd)
-
-	selectInstr := NewInstruction("select", config.Protocol)
-	if _, err := t.guacd.Write(selectInstr.Byte()); err != nil {
+	if _, err := t.guacd.Write(config.SelectInstruction().Byte()); err != nil {
 		return fmt.Errorf("send select instruction error: %s", err.Error())
 	}
-	s, err := br.ReadString(';')
+	selectResponse, err := br.ReadString(';')
 	if err != nil && err != io.EOF {
 		return fmt.Errorf("read select instruction response error: %s", err.Error())
 	}
 
-	argsInstr := Instruction(s)
-	var argsInstrArgs []string
-	for _, i := range argsInstr.Args() {
-		argsInstrArgs = append(argsInstrArgs, config.Params[i.Value()])
-	}
-
-	_, err = t.guacd.Write(NewInstruction(
-		"size",
-		strconv.Itoa(config.ScreenWidth),
-		strconv.Itoa(config.ScreenHeight),
-		strconv.Itoa(config.ScreenDpi)).Byte(),
-	)
+	_, err = t.guacd.Write(config.SizeInstruction().Byte())
 	if err != nil {
 		return fmt.Errorf("send size instruction error: %s", err.Error())
 	}
-	_, err = t.guacd.Write(NewInstruction("audio").Byte())
+	_, err = t.guacd.Write(config.AudioInstruction().Byte())
 	if err != nil {
 		return fmt.Errorf("send audio instruction error: %s", err.Error())
 	}
-	_, err = t.guacd.Write(NewInstruction("video").Byte())
+	_, err = t.guacd.Write(config.VideoInstruction().Byte())
 	if err != nil {
 		return fmt.Errorf("send video instruction error: %s", err.Error())
 	}
-	_, err = t.guacd.Write(NewInstruction("image").Byte())
+	_, err = t.guacd.Write(config.ImageInstruction().Byte())
 	if err != nil {
 		return fmt.Errorf("send image instruction error: %s", err.Error())
 	}
-	_, err = t.guacd.Write(NewInstruction("connect", argsInstrArgs...).Byte())
+
+	argsInstr := Instruction(selectResponse)
+	_, err = t.guacd.Write(config.ConnectInstruction(argsInstr.Args()).Byte())
 	if err != nil {
 		return fmt.Errorf("send connect instruction error: %s", err.Error())
 	}
-	s, err = br.ReadString(';')
+	connectResponse, err := br.ReadString(';')
 	if err != nil && err != io.EOF {
 		return fmt.Errorf("read connect instruction response error: %s", err.Error())
 	}
-	readyInstr := Instruction(s)
+	readyInstr := Instruction(connectResponse)
 	if len(readyInstr.Args()) == 0 {
 		return errors.New("no connection ID received")
 	}
@@ -134,9 +121,9 @@ func (t *Tunnel) Forward(ctx context.Context) error {
 	return t.err
 }
 
-func NewTunnel(netConn net.Conn, wsConn *websocket.Conn) *Tunnel {
+func NewTunnel(guacd net.Conn, ws *websocket.Conn) *Tunnel {
 	return &Tunnel{
-		guacd: netConn,
-		ws:    wsConn,
+		guacd: guacd,
+		ws:    ws,
 	}
 }
