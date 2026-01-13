@@ -1,4 +1,4 @@
-module github.com/riete/guac
+module github.com/riete/go-guac
 
 go 1.25.3
 
