@@ -19,13 +19,13 @@ func WithOnConnect(f func(string)) TunnelOption {
 	}
 }
 
-func WithOnReadFromGuacd(f func([]byte)) TunnelOption {
+func WithOnReadFromGuacd(f func(string, []byte)) TunnelOption {
 	return func(t *Tunnel) {
 		t.onReadFromGuacd = f
 	}
 }
 
-func WithOnReadFromWs(f func([]byte)) TunnelOption {
+func WithOnReadFromWs(f func(string, []byte)) TunnelOption {
 	return func(t *Tunnel) {
 		t.onReadFromWs = f
 	}
@@ -43,8 +43,8 @@ type Tunnel struct {
 	err             error
 	connId          string
 	onConnect       func(connId string)
-	onReadFromGuacd func(fromGuacd []byte)
-	onReadFromWs    func(fromWs []byte)
+	onReadFromGuacd func(connId string, fromGuacd []byte)
+	onReadFromWs    func(connId string, fromWs []byte)
 	onDisconnect    func(connId string)
 }
 
@@ -129,7 +129,7 @@ func (t *Tunnel) guacdToWs(ctx context.Context, cancel context.CancelFunc) {
 				return
 			}
 			if t.onReadFromGuacd != nil {
-				t.onReadFromGuacd(b)
+				t.onReadFromGuacd(t.connId, b)
 			}
 			if err = t.ws.WriteMessage(websocket.TextMessage, b); err != nil {
 				t.setError(fmt.Errorf("write data to ws error: %s", err.Error()))
@@ -152,7 +152,7 @@ func (t *Tunnel) wsToGuacd(ctx context.Context, cancel context.CancelFunc) {
 				return
 			}
 			if t.onReadFromWs != nil {
-				t.onReadFromWs(data)
+				t.onReadFromWs(t.connId, data)
 			}
 			if _, err = t.guacd.Write(data); err != nil {
 				t.setError(fmt.Errorf("write data to guacd error: %s", err.Error()))
