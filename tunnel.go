@@ -11,10 +11,41 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+type TunnelOption func(t *Tunnel)
+
+func WithOnConnect(f func(string)) TunnelOption {
+	return func(t *Tunnel) {
+		t.onConnect = f
+	}
+}
+
+func WithOnReadFromGuacd(f func([]byte)) TunnelOption {
+	return func(t *Tunnel) {
+		t.onReadFromGuacd = f
+	}
+}
+
+func WithOnReadFromWs(f func([]byte)) TunnelOption {
+	return func(t *Tunnel) {
+		t.onReadFromWs = f
+	}
+}
+
+func WithOnDisconnect(f func(string)) TunnelOption {
+	return func(t *Tunnel) {
+		t.onDisconnect = f
+	}
+}
+
 type Tunnel struct {
-	guacd net.Conn
-	ws    *websocket.Conn
-	err   error
+	guacd           net.Conn
+	ws              *websocket.Conn
+	err             error
+	connId          string
+	onConnect       func(connId string)
+	onReadFromGuacd func(fromGuacd []byte)
+	onReadFromWs    func(fromWs []byte)
+	onDisconnect    func(connId string)
 }
 
 func (t *Tunnel) Handshake(config *HandshakeConfig) error {
@@ -57,13 +88,25 @@ func (t *Tunnel) Handshake(config *HandshakeConfig) error {
 	if len(readyInstr.Args()) == 0 {
 		return errors.New("no connection ID received")
 	}
+	t.connId = readyInstr.Args()[0].Value()
+	if t.onConnect != nil {
+		t.onConnect(t.connId)
+	}
 	return nil
+}
+
+func (t *Tunnel) ConnId() string {
+	return t.connId
 }
 
 func (t *Tunnel) Close() {
 	_, _ = t.guacd.Write(NewInstruction("disconnect").Byte())
 	_ = t.guacd.Close()
 	_ = t.ws.Close()
+	t.connId = ""
+	if t.onDisconnect != nil {
+		t.onDisconnect(t.connId)
+	}
 }
 
 func (t *Tunnel) setError(err error) {
@@ -85,6 +128,9 @@ func (t *Tunnel) guacdToWs(ctx context.Context, cancel context.CancelFunc) {
 				t.setError(fmt.Errorf("read data from guacd error: %s", err.Error()))
 				return
 			}
+			if t.onReadFromGuacd != nil {
+				t.onReadFromGuacd(b)
+			}
 			if err = t.ws.WriteMessage(websocket.TextMessage, b); err != nil {
 				t.setError(fmt.Errorf("write data to ws error: %s", err.Error()))
 				return
@@ -105,6 +151,9 @@ func (t *Tunnel) wsToGuacd(ctx context.Context, cancel context.CancelFunc) {
 				t.setError(fmt.Errorf("read data from ws error: %s", err.Error()))
 				return
 			}
+			if t.onReadFromWs != nil {
+				t.onReadFromWs(data)
+			}
 			if _, err = t.guacd.Write(data); err != nil {
 				t.setError(fmt.Errorf("write data to guacd error: %s", err.Error()))
 				return
@@ -121,9 +170,13 @@ func (t *Tunnel) Forward(ctx context.Context) error {
 	return t.err
 }
 
-func NewTunnel(guacd net.Conn, ws *websocket.Conn) *Tunnel {
-	return &Tunnel{
+func NewTunnel(guacd net.Conn, ws *websocket.Conn, opts ...TunnelOption) *Tunnel {
+	t := &Tunnel{
 		guacd: guacd,
 		ws:    ws,
 	}
+	for _, opt := range opts {
+		opt(t)
+	}
+	return t
 }
