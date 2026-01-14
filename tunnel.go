@@ -103,10 +103,10 @@ func (t *Tunnel) Close() {
 	_, _ = t.guacd.Write(NewInstruction("disconnect").Byte())
 	_ = t.guacd.Close()
 	_ = t.ws.Close()
-	t.connId = ""
 	if t.onDisconnect != nil {
 		t.onDisconnect(t.connId)
 	}
+	t.connId = ""
 }
 
 func (t *Tunnel) setError(err error) {
