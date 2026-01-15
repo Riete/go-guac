@@ -166,7 +166,7 @@ func (t *Tunnel) Forward(ctx context.Context) error {
 	newCtx, cancel := context.WithCancel(ctx)
 	go t.guacdToWs(newCtx, cancel)
 	go t.wsToGuacd(newCtx, cancel)
-	<-ctx.Done()
+	<-newCtx.Done()
 	return t.err
 }
 

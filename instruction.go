@@ -34,7 +34,7 @@ func (i Instruction) Opcode() Element {
 
 func (i Instruction) Args() []Element {
 	var elements []Element
-	for _, e := range strings.Split(string(i), ",")[1:] {
+	for _, e := range strings.Split(strings.TrimSuffix(string(i), ";"), ",")[1:] {
 		elements = append(elements, Element(e))
 	}
 	return elements
