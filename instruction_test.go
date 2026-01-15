@@ -5,7 +5,7 @@ import (
 )
 
 func TestInstruction(t *testing.T) {
-	instr := NewInstruction("select", "aaa", "bbb")
+	instr := NewInstruction("select", "aa,,a", "b,b,b", "c,csdf,")
 	t.Log(instr)
 	t.Log(instr.Opcode())
 	t.Log(instr.Args())

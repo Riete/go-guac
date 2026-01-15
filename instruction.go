@@ -12,12 +12,14 @@ import (
 type Element string
 
 func (e Element) Length() int {
-	l, _ := strconv.Atoi(strings.Split(string(e), ".")[0])
+	idx := strings.Index(string(e), ".")
+	l, _ := strconv.Atoi(string(e)[:idx])
 	return l
 }
 
 func (e Element) Value() string {
-	return strings.Split(string(e), ".")[1]
+	idx := strings.Index(string(e), ".")
+	return string(e)[idx+1:]
 }
 
 func NewElement(s string) Element {
@@ -29,13 +31,24 @@ func NewElement(s string) Element {
 type Instruction string
 
 func (i Instruction) Opcode() Element {
-	return Element(strings.Split(string(i), ",")[0])
+	idx := strings.Index(string(i), ",")
+	return Element(string(i)[:idx])
 }
 
 func (i Instruction) Args() []Element {
 	var elements []Element
-	for _, e := range strings.Split(strings.TrimSuffix(string(i), ";"), ",")[1:] {
-		elements = append(elements, Element(e))
+	commaIdx := strings.Index(string(i), ",")
+	args := string(i)[commaIdx+1:]
+	for {
+		dotIndex := strings.Index(args, ".")
+		length, _ := strconv.Atoi(args[:dotIndex])
+		start := dotIndex + 1
+		end := start + length
+		elements = append(elements, NewElement(args[start:end]))
+		if args[end] == ';' {
+			break
+		}
+		args = args[end+1:]
 	}
 	return elements
 }

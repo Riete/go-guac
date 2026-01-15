@@ -48,6 +48,16 @@ type Tunnel struct {
 	onDisconnect    func(connId string)
 }
 
+// Handshake performs the complete handshake process.
+// The handshake flow is:
+//  1. Client sends "select" with the protocol name (vnc, rdp, ssh)
+//  2. Server responds with "args" listing required parameters
+//  3. Client sends "size" with display dimensions
+//  4. Client sends "audio" with supported audio MIME types
+//  5. Client sends "video" with supported video MIME types
+//  6. Client sends "image" with supported image MIME types
+//  7. Client sends "connect" with parameter values (in order from args)
+//  8. Server responds with "ready" containing the connection ID
 func (t *Tunnel) Handshake(config *HandshakeConfig) error {
 	br := bufio.NewReader(t.guacd)
 	if _, err := t.guacd.Write(config.SelectInstruction().Byte()); err != nil {
