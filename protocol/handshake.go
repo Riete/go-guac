@@ -1,4 +1,4 @@
-package guac
+package protocol
 
 import (
 	"strconv"

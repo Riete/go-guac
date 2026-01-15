@@ -1,4 +1,4 @@
-package guac
+package tunnel
 
 import (
 	"bufio"
@@ -9,6 +9,7 @@ import (
 	"net"
 
 	"github.com/gorilla/websocket"
+	"github.com/riete/go-guac/protocol"
 )
 
 type TunnelOption func(t *Tunnel)
@@ -58,7 +59,7 @@ type Tunnel struct {
 //  6. Client sends "image" with supported image MIME types
 //  7. Client sends "connect" with parameter values (in order from args)
 //  8. Server responds with "ready" containing the connection ID
-func (t *Tunnel) Handshake(config *HandshakeConfig) error {
+func (t *Tunnel) Handshake(config *protocol.HandshakeConfig) error {
 	br := bufio.NewReader(t.guacd)
 	if _, err := t.guacd.Write(config.SelectInstruction().Byte()); err != nil {
 		return fmt.Errorf("send select instruction error: %s", err.Error())
@@ -85,7 +86,7 @@ func (t *Tunnel) Handshake(config *HandshakeConfig) error {
 		return fmt.Errorf("send image instruction error: %s", err.Error())
 	}
 
-	argsInstr := Instruction(selectResponse)
+	argsInstr := protocol.Instruction(selectResponse)
 	_, err = t.guacd.Write(config.ConnectInstruction(argsInstr.Args()).Byte())
 	if err != nil {
 		return fmt.Errorf("send connect instruction error: %s", err.Error())
@@ -94,7 +95,7 @@ func (t *Tunnel) Handshake(config *HandshakeConfig) error {
 	if err != nil && err != io.EOF {
 		return fmt.Errorf("read connect instruction response error: %s", err.Error())
 	}
-	readyInstr := Instruction(connectResponse)
+	readyInstr := protocol.Instruction(connectResponse)
 	if len(readyInstr.Args()) == 0 {
 		return errors.New("no connection ID received")
 	}
@@ -110,7 +111,7 @@ func (t *Tunnel) ConnId() string {
 }
 
 func (t *Tunnel) Close() {
-	_, _ = t.guacd.Write(NewInstruction("disconnect").Byte())
+	_, _ = t.guacd.Write(protocol.NewInstruction("disconnect").Byte())
 	_ = t.guacd.Close()
 	_ = t.ws.Close()
 	if t.onDisconnect != nil {

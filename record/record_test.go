@@ -1,4 +1,4 @@
-package guac
+package record
 
 import (
 	"context"
