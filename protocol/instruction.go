@@ -15,14 +15,16 @@ import (
 type Element string
 
 func (e Element) Length() int {
-	idx := strings.Index(string(e), ".")
-	l, _ := strconv.Atoi(string(e)[:idx])
+	s := string(e)
+	idx := strings.Index(s, ".")
+	l, _ := strconv.Atoi(s[:idx])
 	return l
 }
 
 func (e Element) Value() string {
-	idx := strings.Index(string(e), ".")
-	return string(e)[idx+1:]
+	s := string(e)
+	idx := strings.Index(s, ".")
+	return s[idx+1:]
 }
 
 func NewElement(s string) Element {
@@ -32,23 +34,41 @@ func NewElement(s string) Element {
 
 // Instruction
 // OPCODE,ARG1,ARG2,ARG3,...;
+// Each instruction is a comma-delimited list followed by a terminating semicolon,
+// where the first element of the list is the instruction opcode,
+// and all following elements are the arguments for that instruction
+// https://guacamole.apache.org/doc/gug/guacamole-protocol.html#design
 type Instruction string
 
 func (i Instruction) Opcode() Element {
-	idx := strings.Index(string(i), ",")
-	return Element(string(i)[:idx])
+	s := string(i)
+	idx := strings.Index(s, ",")
+	if idx == -1 {
+		return Element(s[:strings.LastIndex(s, ";")])
+	}
+	return Element(s[:idx])
 }
 
 func (i Instruction) Args() []Element {
+	s := string(i)
+	commaIdx := strings.Index(s, ",")
+	if commaIdx == -1 {
+		return []Element{}
+	}
+	args := s[commaIdx+1:]
 	var elements []Element
-	commaIdx := strings.Index(string(i), ",")
-	args := string(i)[commaIdx+1:]
 	for {
 		dotIndex := strings.Index(args, ".")
 		length, _ := strconv.Atoi(args[:dotIndex])
 		start := dotIndex + 1
-		end := start + length
-		elements = append(elements, NewElement(args[start:end]))
+		runeCount := 0
+		end := start
+		for runeCount < length {
+			_, size := utf8.DecodeRuneInString(args[end:])
+			end += size
+			runeCount++
+		}
+		elements = append(elements, Element(args[:end]))
 		if args[end] == ';' {
 			break
 		}
@@ -63,8 +83,8 @@ func (i Instruction) Byte() []byte {
 
 func NewInstruction(opcode string, args ...string) Instruction {
 	var elements []string
-	for _, i := range append([]string{opcode}, args...) {
-		elements = append(elements, string(NewElement(i)))
+	for _, arg := range append([]string{opcode}, args...) {
+		elements = append(elements, string(NewElement(arg)))
 	}
 	return Instruction(strings.Join(elements, ",") + ";")
 }
