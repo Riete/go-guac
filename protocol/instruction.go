@@ -8,10 +8,11 @@ import (
 	"github.com/riete/convert/str"
 )
 
+// https://guacamole.apache.org/doc/gug/guacamole-protocol.html#design
+
 // Element LENGTH.VALUE
 // Each element of the list has a positive decimal integer length prefix separated by the value of the element by a period.
 // This length denotes the number of Unicode characters in the value of the element, which is encoded in UTF-8
-// https://guacamole.apache.org/doc/gug/guacamole-protocol.html
 type Element string
 
 func (e Element) Length() int {
@@ -37,7 +38,6 @@ func NewElement(s string) Element {
 // Each instruction is a comma-delimited list followed by a terminating semicolon,
 // where the first element of the list is the instruction opcode,
 // and all following elements are the arguments for that instruction
-// https://guacamole.apache.org/doc/gug/guacamole-protocol.html#design
 type Instruction string
 
 func (i Instruction) Opcode() Element {
