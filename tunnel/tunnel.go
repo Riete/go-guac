@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/riete/go-guac/protocol"
@@ -111,7 +112,7 @@ func (t *Tunnel) ConnId() string {
 }
 
 func (t *Tunnel) Close() {
-	_, _ = t.guacd.Write(protocol.NewInstruction("disconnect").Byte())
+	_, _ = t.guacd.Write(protocol.Disconnect.Byte())
 	_ = t.guacd.Close()
 	_ = t.ws.Close()
 	if t.onDisconnect != nil {
@@ -173,8 +174,22 @@ func (t *Tunnel) wsToGuacd(ctx context.Context, cancel context.CancelFunc) {
 	}
 }
 
+func (t *Tunnel) keepalive(ctx context.Context) {
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			_, _ = t.guacd.Write(protocol.Nop.Byte())
+		}
+	}
+}
+
 func (t *Tunnel) Forward(ctx context.Context) error {
 	newCtx, cancel := context.WithCancel(ctx)
+	go t.keepalive(newCtx)
 	go t.guacdToWs(newCtx, cancel)
 	go t.wsToGuacd(newCtx, cancel)
 	<-newCtx.Done()

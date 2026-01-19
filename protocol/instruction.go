@@ -88,3 +88,9 @@ func NewInstruction(opcode string, args ...string) Instruction {
 	}
 	return Instruction(strings.Join(elements, ",") + ";")
 }
+
+// Disconnect is a global Instruction for disconnecting from the Guacamole server
+var Disconnect = NewInstruction("disconnect")
+
+// Nop is a global Instruction for no operation (keep-alive)
+var Nop = NewInstruction("nop")
