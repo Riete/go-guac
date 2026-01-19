@@ -1,14 +1,17 @@
 package protocol
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/riete/convert/str"
 )
 
 // Element LENGTH.VALUE
+// Each element of the list has a positive decimal integer length prefix separated by the value of the element by a period.
+// This length denotes the number of Unicode characters in the value of the element, which is encoded in UTF-8
+// https://guacamole.apache.org/doc/gug/guacamole-protocol.html
 type Element string
 
 func (e Element) Length() int {
@@ -23,7 +26,8 @@ func (e Element) Value() string {
 }
 
 func NewElement(s string) Element {
-	return Element(fmt.Sprintf("%d.%s", len(s), s))
+	length := utf8.RuneCountInString(s)
+	return Element(strconv.Itoa(length) + "." + s)
 }
 
 // Instruction
