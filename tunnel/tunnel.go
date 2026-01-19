@@ -72,8 +72,8 @@ func (t *Tunnel) Handshake(config *protocol.HandshakeConfig) error {
 		return fmt.Errorf("read select instruction response error: %s", err.Error())
 	}
 	argsInstr := protocol.Instruction(selectResponse)
-	if e, message, status := argsInstr.IsError(); e {
-		return protocol.Error(message, status)
+	if err = argsInstr.Error(); err != nil {
+		return err
 	}
 	_, err = t.guacd.Write(config.SizeInstruction().Byte())
 	if err != nil {
@@ -101,8 +101,8 @@ func (t *Tunnel) Handshake(config *protocol.HandshakeConfig) error {
 		return fmt.Errorf("read connect instruction response error: %s", err.Error())
 	}
 	readyInstr := protocol.Instruction(connectResponse)
-	if e, message, status := readyInstr.IsError(); e {
-		return protocol.Error(message, status)
+	if err = readyInstr.Error(); err != nil {
+		return err
 	}
 	if len(readyInstr.Args()) == 0 {
 		return errors.New("no connection ID received")
@@ -151,8 +151,8 @@ func (t *Tunnel) guacdToWs(ctx context.Context, cancel context.CancelFunc) {
 			once.Do(func() {
 				// check first instruction after handshake, maybe some error, e.g. CLIENT_UNAUTHORIZED
 				instr := protocol.Instruction(str.FromBytes(b))
-				if e, message, status := instr.IsError(); e {
-					t.setError(protocol.Error(message, status))
+				if err = instr.Error(); err != nil {
+					t.setError(err)
 				}
 			})
 			if t.onReadFromGuacd != nil {

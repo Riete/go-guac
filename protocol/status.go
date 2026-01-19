@@ -1,7 +1,6 @@
 package protocol
 
 import (
-	"fmt"
 	"strconv"
 )
 
@@ -123,8 +122,4 @@ func (s Status) String() string {
 	default:
 		return code + "_UNKNOWN"
 	}
-}
-
-func Error(message string, status Status) error {
-	return fmt.Errorf("server error: %s %s", status.String(), message)
 }

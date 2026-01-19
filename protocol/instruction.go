@@ -1,6 +1,7 @@
 package protocol
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -77,17 +78,20 @@ func (i Instruction) Args() []Element {
 	return elements
 }
 
-func (i Instruction) IsError() (bool, string, Status) {
-	opcode := i.Opcode()
-	if opcode.Value() != "error" {
-		return false, "", 0
+func (i Instruction) IsError() bool {
+	return i.Opcode().Value() == "error"
+}
+
+func (i Instruction) Error() error {
+	if !i.IsError() {
+		return nil
 	}
 	args := i.Args()
 	message := args[0].Value()
 	statusCodeStr := args[1].Value()
 	statusCodeInt, _ := strconv.ParseInt(statusCodeStr, 10, 64)
 	status := Status(statusCodeInt)
-	return true, message, status
+	return fmt.Errorf("server error: %s %s", status.String(), message)
 }
 
 func (i Instruction) Byte() []byte {
