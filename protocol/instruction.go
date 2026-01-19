@@ -77,6 +77,19 @@ func (i Instruction) Args() []Element {
 	return elements
 }
 
+func (i Instruction) IsError() (bool, string, Status) {
+	opcode := i.Opcode()
+	if opcode.Value() != "error" {
+		return false, "", 0
+	}
+	args := i.Args()
+	message := args[0].Value()
+	statusCodeStr := args[1].Value()
+	statusCodeInt, _ := strconv.ParseInt(statusCodeStr, 10, 64)
+	status := Status(statusCodeInt)
+	return true, message, status
+}
+
 func (i Instruction) Byte() []byte {
 	return str.ToBytes(string(i))
 }

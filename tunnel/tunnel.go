@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/riete/convert/str"
 	"github.com/riete/go-guac/protocol"
 )
 
@@ -69,7 +71,10 @@ func (t *Tunnel) Handshake(config *protocol.HandshakeConfig) error {
 	if err != nil && err != io.EOF {
 		return fmt.Errorf("read select instruction response error: %s", err.Error())
 	}
-
+	argsInstr := protocol.Instruction(selectResponse)
+	if e, message, status := argsInstr.IsError(); e {
+		return protocol.Error(message, status)
+	}
 	_, err = t.guacd.Write(config.SizeInstruction().Byte())
 	if err != nil {
 		return fmt.Errorf("send size instruction error: %s", err.Error())
@@ -87,7 +92,6 @@ func (t *Tunnel) Handshake(config *protocol.HandshakeConfig) error {
 		return fmt.Errorf("send image instruction error: %s", err.Error())
 	}
 
-	argsInstr := protocol.Instruction(selectResponse)
 	_, err = t.guacd.Write(config.ConnectInstruction(argsInstr.Args()).Byte())
 	if err != nil {
 		return fmt.Errorf("send connect instruction error: %s", err.Error())
@@ -97,6 +101,9 @@ func (t *Tunnel) Handshake(config *protocol.HandshakeConfig) error {
 		return fmt.Errorf("read connect instruction response error: %s", err.Error())
 	}
 	readyInstr := protocol.Instruction(connectResponse)
+	if e, message, status := readyInstr.IsError(); e {
+		return protocol.Error(message, status)
+	}
 	if len(readyInstr.Args()) == 0 {
 		return errors.New("no connection ID received")
 	}
@@ -130,6 +137,7 @@ func (t *Tunnel) setError(err error) {
 func (t *Tunnel) guacdToWs(ctx context.Context, cancel context.CancelFunc) {
 	defer cancel()
 	br := bufio.NewReader(t.guacd)
+	var once sync.Once
 	for {
 		select {
 		case <-ctx.Done():
@@ -140,6 +148,13 @@ func (t *Tunnel) guacdToWs(ctx context.Context, cancel context.CancelFunc) {
 				t.setError(fmt.Errorf("read data from guacd error: %s", err.Error()))
 				return
 			}
+			once.Do(func() {
+				// check first instruction after handshake, maybe some error, e.g. CLIENT_UNAUTHORIZED
+				instr := protocol.Instruction(str.FromBytes(b))
+				if e, message, status := instr.IsError(); e {
+					t.setError(protocol.Error(message, status))
+				}
+			})
 			if t.onReadFromGuacd != nil {
 				t.onReadFromGuacd(t.connId, b)
 			}
