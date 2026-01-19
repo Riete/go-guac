@@ -90,8 +90,7 @@ func (i Instruction) Error() error {
 	message := args[0].Value()
 	statusCodeStr := args[1].Value()
 	statusCodeInt, _ := strconv.ParseInt(statusCodeStr, 10, 64)
-	status := Status(statusCodeInt)
-	return fmt.Errorf("server error: %s %s", status.String(), message)
+	return fmt.Errorf("server error: %s %s", StatusCode(statusCodeInt).String(), message)
 }
 
 func (i Instruction) Byte() []byte {
