@@ -17,6 +17,12 @@ func WithProtocol(protocol string) HandshakeOption {
 	}
 }
 
+func WithDomain(domain string) HandshakeOption {
+	return func(c *HandshakeConfig) {
+		c.connectArgs["domain"] = domain
+	}
+}
+
 func WithAuth(username, password string) HandshakeOption {
 	return func(c *HandshakeConfig) {
 		c.connectArgs["username"] = username
@@ -47,7 +53,7 @@ func WithAudioCodecs(codecs []string) HandshakeOption {
 
 func WithVideoCodecs(codecs []string) HandshakeOption {
 	return func(c *HandshakeConfig) {
-		c.videosCodecs = codecs
+		c.videoCodecs = codecs
 	}
 }
 
@@ -63,9 +69,21 @@ func WithIgnoreCert() HandshakeOption {
 	}
 }
 
+func WithSecurity(security string) HandshakeOption {
+	return func(c *HandshakeConfig) {
+		c.connectArgs["security"] = security
+	}
+}
+
 func WithNLASecurity() HandshakeOption {
 	return func(c *HandshakeConfig) {
 		c.connectArgs["security"] = "nla"
+	}
+}
+
+func WithReadOnly() HandshakeOption {
+	return func(c *HandshakeConfig) {
+		c.connectArgs["read-only"] = "true"
 	}
 }
 
@@ -76,7 +94,7 @@ type HandshakeConfig struct {
 	height       int
 	dpi          int
 	audioCodecs  []string
-	videosCodecs []string
+	videoCodecs  []string
 	imageFormats []string
 }
 
@@ -96,8 +114,8 @@ func (h *HandshakeConfig) SizeInstruction() Instruction {
 
 func (h *HandshakeConfig) ConnectInstruction(args []Element) Instruction {
 	var argsValues []string
-	for _, i := range args {
-		argsValues = append(argsValues, h.connectArgs[i.Value()])
+	for _, arg := range args {
+		argsValues = append(argsValues, h.connectArgs[arg.Value()])
 	}
 	return NewInstruction("connect", argsValues...)
 }
@@ -107,7 +125,7 @@ func (h *HandshakeConfig) AudioInstruction() Instruction {
 }
 
 func (h *HandshakeConfig) VideoInstruction() Instruction {
-	return NewInstruction("video", h.videosCodecs...)
+	return NewInstruction("video", h.videoCodecs...)
 }
 
 func (h *HandshakeConfig) ImageInstruction() Instruction {
