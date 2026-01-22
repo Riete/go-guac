@@ -75,26 +75,11 @@ func (t *Tunnel) Handshake(config *protocol.HandshakeConfig) error {
 	if err = argsInstr.Error(); err != nil {
 		return err
 	}
-	_, err = t.guacd.Write(config.SizeInstruction().Byte())
-	if err != nil {
-		return fmt.Errorf("send size instruction error: %s", err.Error())
-	}
-	_, err = t.guacd.Write(config.AudioInstruction().Byte())
-	if err != nil {
-		return fmt.Errorf("send audio instruction error: %s", err.Error())
-	}
-	_, err = t.guacd.Write(config.VideoInstruction().Byte())
-	if err != nil {
-		return fmt.Errorf("send video instruction error: %s", err.Error())
-	}
-	_, err = t.guacd.Write(config.ImageInstruction().Byte())
-	if err != nil {
-		return fmt.Errorf("send image instruction error: %s", err.Error())
-	}
 
-	_, err = t.guacd.Write(config.ConnectInstruction(argsInstr.Args()).Byte())
-	if err != nil {
-		return fmt.Errorf("send connect instruction error: %s", err.Error())
+	fullConnectInstr := config.SizeInstruction() + config.AudioInstruction() + config.VideoInstruction() +
+		config.ImageInstruction() + config.ConnectInstruction(argsInstr.Args())
+	if _, err = t.guacd.Write(fullConnectInstr.Byte()); err != nil {
+		return fmt.Errorf("send full connect instruction error: %s", err.Error())
 	}
 	connectResponse, err := br.ReadString(';')
 	if err != nil && err != io.EOF {
@@ -144,7 +129,10 @@ func (t *Tunnel) guacdToWs(ctx context.Context, cancel context.CancelFunc) {
 			return
 		default:
 			b, err := br.ReadBytes(';')
-			if err != nil && err != io.EOF {
+			if err == io.EOF {
+				return
+			}
+			if err != nil {
 				t.setError(fmt.Errorf("read data from guacd error: %s", err.Error()))
 				return
 			}
