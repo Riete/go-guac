@@ -21,12 +21,14 @@ package main
 
 import (
     "context"
+    "log"
     "net"
+    "time"
 
     "github.com/gorilla/websocket"
-    "gitlab.bangdao-tech.com/kubeease/resource/go-guac/protocol"
-    "gitlab.bangdao-tech.com/kubeease/resource/go-guac/recorder"
-    "gitlab.bangdao-tech.com/kubeease/resource/go-guac/tunnel"
+    "github.com/riete/go-guac/protocol"
+    "github.com/riete/go-guac/recorder"
+    "github.com/riete/go-guac/tunnel"
 )
 
 func main() {
@@ -61,11 +63,10 @@ func main() {
         map[string]string{
             "hostname": "192.168.1.100",
             "port":     "3389",
-            "username": "admin",
-            "password": "secret",
         },
         protocol.WithProtocol("rdp"),
-        protocol.WithScreenSize(1920, 1080, 96),
+        protocol.WithScreen(1920, 1080, 96),
+        protocol.WithAuth("admin", "secret"),
     )
     
     // Perform handshake
@@ -109,34 +110,30 @@ protocol.Disconnect // disconnect instruction
 
 ```go
 config := protocol.NewHandshakeConfig(
-    map[string]string{
-        "hostname": "192.168.1.100",
-        "port":     "3389",
-        "username": "admin",
-        "password": "secret",
-    },
-    // Protocol
-    protocol.WithProtocol("rdp"),  // rdp, vnc, ssh
-    
-    // Screen settings
-    protocol.WithScreenSize(1920, 1080, 96),
-    
-    // Audio/Video codecs
-    protocol.WithAudioCodecs("audio/L8", "audio/L16"),
-    protocol.WithVideoCodecs("video/webm"),
-    protocol.WithImageFormats("image/png", "image/jpeg"),
-    
-    // RDP specific options
-    protocol.WithSecurity("nla"),          // nla, tls, rdp, any
-    protocol.WithIgnoreCert(true),
-    protocol.WithDisableAuth(false),
-    protocol.WithEnableDrive(true),
-    protocol.WithDrivePath("/shared"),
-    protocol.WithConsole(false),
-    
-    // SSH specific options
-    protocol.WithPrivateKey("..."),
-    protocol.WithPassphrase("..."),
+map[string]string{
+"hostname": "192.168.1.100",
+"port":     "3389",
+},
+// Protocol
+protocol.WithProtocol("rdp"),  // rdp, vnc, ssh
+
+// Authentication
+protocol.WithAuth("username", "password"),
+protocol.WithDomain("DOMAIN"),
+
+// Screen settings
+protocol.WithScreen(1920, 1080, 96),
+
+// Audio/Video codecs
+protocol.WithAudioCodecs([]string{"audio/L8", "audio/L16"}),
+protocol.WithVideoCodecs([]string{"video/webm"}),
+protocol.WithImageFormats([]string{"image/png", "image/jpeg"}),
+
+// RDP specific options
+protocol.WithSecurity("nla"),   // nla, tls, rdp, any
+protocol.WithNLASecurity(),     // Shortcut for NLA
+protocol.WithIgnoreCert(),      // Ignore certificate errors
+protocol.WithReadOnly(),        // Read-only mode
 )
 ```
 
@@ -156,18 +153,18 @@ str := status.String()  // "769_CLIENT_UNAUTHORIZED"
 
 ```go
 tunnel.NewTunnel(guacd, ws,
-    // Keepalive settings
-    tunnel.WithGuacdKeepalive(time.Minute),      // Send nop to guacd
-    tunnel.WithWsKeepalive(30*time.Second, 2),   // Ping/pong with deadline
-    
-    // Recorder
-    tunnel.WithRecorder(recorder),
-    
-    // Callbacks (chainable, called in order)
-    tunnel.WithOnConnect(func(connId string) { }),
-    tunnel.WithOnDisconnect(func(connId string) { }),
-    tunnel.WithOnReadFromGuacd(func(connId string, data []byte) { }),
-    tunnel.WithOnReadFromWs(func(connId string, data []byte) { }),
+// Keepalive settings
+tunnel.WithGuacdKeepalive(time.Minute),      // Send nop to guacd
+tunnel.WithWsKeepalive(30*time.Second, 2),   // Ping/pong with deadline
+
+// Recorder
+tunnel.WithRecorder(recorder),
+
+// Callbacks (chainable, called in order)
+tunnel.WithOnConnect(func(connId string) { }),
+tunnel.WithOnDisconnect(func(connId string) { }),
+tunnel.WithOnReadFromGuacd(func(connId string, data []byte) { }),
+tunnel.WithOnReadFromWs(func(connId string, data []byte) { }),
 )
 ```
 
@@ -194,8 +191,8 @@ t.Close()
 ```go
 // Create recorder
 rec := recorder.NewFileRecorder(
-    recorder.WithBaseDirectory("/path/to/records"),
-    recorder.WithGzipCompress(),  // Enable gzip compression
+recorder.WithBaseDirectory("/path/to/records"),
+recorder.WithGzipCompress(),  // Enable gzip compression
 )
 
 // Record data
@@ -208,10 +205,10 @@ rec.Close(connId)
 ctx := context.Background()
 ch, err := rec.Replay(ctx, connId)
 if err != nil {
-    log.Fatal(err)
+log.Fatal(err)
 }
 for instruction := range ch {
-    fmt.Println(instruction)
+fmt.Println(instruction)
 }
 ```
 
@@ -219,12 +216,12 @@ for instruction := range ch {
 
 ```go
 rec := recorder.NewFileRecorder(
-    recorder.WithBaseDirectory("/records"),
-    recorder.WithGzipCompress(),
+recorder.WithBaseDirectory("/records"),
+recorder.WithGzipCompress(),
 )
 
 t := tunnel.NewTunnel(guacd, ws,
-    tunnel.WithRecorder(rec),  // Automatically records and closes
+tunnel.WithRecorder(rec),  // Automatically records and closes
 )
 ```
 
@@ -234,8 +231,8 @@ Implement custom recorders:
 
 ```go
 type Recorder interface {
-    Record(connId string, data []byte)
-    Replay(ctx context.Context, connId string) (chan string, error)
-    Close(connId string)
+Record(connId string, data []byte)
+Replay(ctx context.Context, connId string) (chan string, error)
+Close(connId string)
 }
 ```
