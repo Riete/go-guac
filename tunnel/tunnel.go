@@ -24,10 +24,10 @@ func WithOnConnect(f func(string)) TunnelOption {
 	return func(t *Tunnel) {
 		original := t.onConnect
 		t.onConnect = func(connId string) {
-			f(connId)
 			if original != nil {
 				original(connId)
 			}
+			f(connId)
 		}
 	}
 }
@@ -36,10 +36,10 @@ func WithOnReadFromGuacd(f func(string, []byte)) TunnelOption {
 	return func(t *Tunnel) {
 		original := t.onReadFromGuacd
 		t.onReadFromGuacd = func(connId string, data []byte) {
-			f(connId, data)
 			if original != nil {
 				original(connId, data)
 			}
+			f(connId, data)
 		}
 	}
 }
@@ -48,10 +48,10 @@ func WithOnReadFromWs(f func(string, []byte)) TunnelOption {
 	return func(t *Tunnel) {
 		original := t.onReadFromWs
 		t.onReadFromWs = func(connId string, data []byte) {
-			f(connId, data)
 			if original != nil {
 				original(connId, data)
 			}
+			f(connId, data)
 		}
 	}
 }
@@ -60,10 +60,10 @@ func WithOnDisconnect(f func(string)) TunnelOption {
 	return func(t *Tunnel) {
 		original := t.onDisconnect
 		t.onDisconnect = func(connId string) {
-			f(connId)
 			if original != nil {
 				original(connId)
 			}
+			f(connId)
 		}
 	}
 }
