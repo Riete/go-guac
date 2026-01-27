@@ -22,25 +22,49 @@ type TunnelOption func(t *Tunnel)
 
 func WithOnConnect(f func(string)) TunnelOption {
 	return func(t *Tunnel) {
-		t.onConnect = f
+		original := t.onConnect
+		t.onConnect = func(connId string) {
+			f(connId)
+			if original != nil {
+				original(connId)
+			}
+		}
 	}
 }
 
 func WithOnReadFromGuacd(f func(string, []byte)) TunnelOption {
 	return func(t *Tunnel) {
-		t.onReadFromGuacd = f
+		original := t.onReadFromGuacd
+		t.onReadFromGuacd = func(connId string, data []byte) {
+			f(connId, data)
+			if original != nil {
+				original(connId, data)
+			}
+		}
 	}
 }
 
 func WithOnReadFromWs(f func(string, []byte)) TunnelOption {
 	return func(t *Tunnel) {
-		t.onReadFromWs = f
+		original := t.onReadFromWs
+		t.onReadFromWs = func(connId string, data []byte) {
+			f(connId, data)
+			if original != nil {
+				original(connId, data)
+			}
+		}
 	}
 }
 
 func WithOnDisconnect(f func(string)) TunnelOption {
 	return func(t *Tunnel) {
-		t.onDisconnect = f
+		original := t.onDisconnect
+		t.onDisconnect = func(connId string) {
+			f(connId)
+			if original != nil {
+				original(connId)
+			}
+		}
 	}
 }
 
@@ -68,20 +92,8 @@ func WithWsKeepalive(interval time.Duration, threshold int64) TunnelOption {
 
 func WithRecorder(r recorder.Recorder) TunnelOption {
 	return func(t *Tunnel) {
-		originalOnReadFromGuacd := t.onReadFromGuacd
-		t.onReadFromGuacd = func(connId string, data []byte) {
-			r.Record(connId, data)
-			if originalOnReadFromGuacd != nil {
-				originalOnReadFromGuacd(connId, data)
-			}
-		}
-		originalOnDisconnect := t.onDisconnect
-		t.onDisconnect = func(connId string) {
-			r.Close(connId)
-			if originalOnDisconnect != nil {
-				originalOnDisconnect(connId)
-			}
-		}
+		WithOnReadFromGuacd(r.Record)(t)
+		WithOnDisconnect(r.Close)(t)
 	}
 }
 
