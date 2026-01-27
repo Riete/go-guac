@@ -13,6 +13,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/riete/convert/str"
 	"github.com/riete/go-guac/protocol"
+	"github.com/riete/go-guac/recorder"
 )
 
 const minKeepaliveInterval = 30 * time.Second
@@ -62,6 +63,25 @@ func WithWsKeepalive(interval time.Duration, threshold int64) TunnelOption {
 		}
 		t.wsKeepaliveInterval = interval
 		t.wsKeepaliveThreshold = threshold
+	}
+}
+
+func WithRecorder(r recorder.Recorder) TunnelOption {
+	return func(t *Tunnel) {
+		originalOnReadFromGuacd := t.onReadFromGuacd
+		t.onReadFromGuacd = func(connId string, data []byte) {
+			r.Record(connId, data)
+			if originalOnReadFromGuacd != nil {
+				originalOnReadFromGuacd(connId, data)
+			}
+		}
+		originalOnDisconnect := t.onDisconnect
+		t.onDisconnect = func(connId string) {
+			r.Close(connId)
+			if originalOnDisconnect != nil {
+				originalOnDisconnect(connId)
+			}
+		}
 	}
 }
 

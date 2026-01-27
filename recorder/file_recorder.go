@@ -1,4 +1,4 @@
-package record
+package recorder
 
 import (
 	"bufio"
@@ -10,6 +10,22 @@ import (
 	"strings"
 	"sync"
 )
+
+const defaultBaseDirectory = "records"
+
+type FileRecorderOption func(*FileRecorder)
+
+func WithGzipCompress() FileRecorderOption {
+	return func(fr *FileRecorder) {
+		fr.compress = true
+	}
+}
+
+func WithBaseDirectory(base string) FileRecorderOption {
+	return func(fr *FileRecorder) {
+		fr.base = base
+	}
+}
 
 // FileRecorder store session records to local file with optional gzip compression
 type FileRecorder struct {
@@ -26,7 +42,7 @@ func (f *FileRecorder) connId(connId string) string {
 }
 
 func (f *FileRecorder) filename(connId string) string {
-	filename := filepath.Join(f.base, f.connId(connId))
+	filename := filepath.Join(f.base, connId)
 	if f.compress {
 		filename += ".gz"
 	}
@@ -36,7 +52,6 @@ func (f *FileRecorder) filename(connId string) string {
 func (f *FileRecorder) open(connId string) (io.WriteCloser, error) {
 	var w io.WriteCloser
 	var err error
-	connId = f.connId(connId)
 	w, err = os.Create(f.filename(connId))
 	if err != nil {
 		return nil, err
@@ -53,12 +68,6 @@ func (f *FileRecorder) open(connId string) (io.WriteCloser, error) {
 	return w, nil
 }
 
-func (f *FileRecorder) Open(connId string) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	_, _ = f.open(connId)
-}
-
 func (f *FileRecorder) Close(connId string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -72,7 +81,7 @@ func (f *FileRecorder) Close(connId string) {
 	}
 }
 
-func (f *FileRecorder) Write(connId string, data []byte) {
+func (f *FileRecorder) Record(connId string, data []byte) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	connId = f.connId(connId)
@@ -90,7 +99,7 @@ func (f *FileRecorder) Write(connId string, data []byte) {
 }
 
 func (f *FileRecorder) Replay(ctx context.Context, connId string) (chan string, error) {
-	filename := f.filename(connId)
+	filename := f.filename(f.connId(connId))
 	var r io.ReadCloser
 	var closers []io.Closer
 	var err error
@@ -138,12 +147,15 @@ func (f *FileRecorder) Replay(ctx context.Context, connId string) (chan string, 
 	return ch, nil
 }
 
-func NewFileRecorder(base string, compress bool) *FileRecorder {
-	_ = os.MkdirAll(base, 0755)
-	return &FileRecorder{
-		writers:  make(map[string]io.Writer),
-		closers:  make(map[string][]io.Closer),
-		compress: compress,
-		base:     base,
+func NewFileRecorder(opts ...FileRecorderOption) Recorder {
+	fr := &FileRecorder{
+		writers: make(map[string]io.Writer),
+		closers: make(map[string][]io.Closer),
+		base:    defaultBaseDirectory,
 	}
+	for _, opt := range opts {
+		opt(fr)
+	}
+	_ = os.MkdirAll(fr.base, 0755)
+	return fr
 }
