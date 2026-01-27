@@ -15,6 +15,8 @@ import (
 	"github.com/riete/go-guac/protocol"
 )
 
+const minKeepaliveInterval = 30 * time.Second
+
 type TunnelOption func(t *Tunnel)
 
 func WithOnConnect(f func(string)) TunnelOption {
@@ -41,15 +43,40 @@ func WithOnDisconnect(f func(string)) TunnelOption {
 	}
 }
 
+func WithGuacdKeepalive(interval time.Duration) TunnelOption {
+	return func(t *Tunnel) {
+		if interval < minKeepaliveInterval {
+			interval = minKeepaliveInterval
+		}
+		t.guacdKeepaliveInterval = interval
+	}
+}
+
+func WithWsKeepalive(interval time.Duration, threshold int64) TunnelOption {
+	return func(t *Tunnel) {
+		if interval < minKeepaliveInterval {
+			interval = minKeepaliveInterval
+		}
+		if threshold < 1 {
+			threshold = 1
+		}
+		t.wsKeepaliveInterval = interval
+		t.wsKeepaliveThreshold = threshold
+	}
+}
+
 type Tunnel struct {
-	guacd           net.Conn
-	ws              *websocket.Conn
-	err             error
-	connId          string
-	onConnect       func(connId string)
-	onReadFromGuacd func(connId string, fromGuacd []byte)
-	onReadFromWs    func(connId string, fromWs []byte)
-	onDisconnect    func(connId string)
+	guacd                  net.Conn
+	ws                     *websocket.Conn
+	err                    error
+	connId                 string
+	guacdKeepaliveInterval time.Duration
+	wsKeepaliveInterval    time.Duration
+	wsKeepaliveThreshold   int64
+	onConnect              func(connId string)
+	onReadFromGuacd        func(connId string, fromGuacd []byte)
+	onReadFromWs           func(connId string, fromWs []byte)
+	onDisconnect           func(connId string)
 }
 
 // Handshake performs the complete handshake process.
@@ -177,8 +204,8 @@ func (t *Tunnel) wsToGuacd(ctx context.Context, cancel context.CancelFunc) {
 	}
 }
 
-func (t *Tunnel) keepalive(ctx context.Context) {
-	ticker := time.NewTicker(time.Minute)
+func (t *Tunnel) guacdKeepalive(ctx context.Context) {
+	ticker := time.NewTicker(t.guacdKeepaliveInterval)
 	defer ticker.Stop()
 	for {
 		select {
@@ -190,9 +217,34 @@ func (t *Tunnel) keepalive(ctx context.Context) {
 	}
 }
 
+func (t *Tunnel) wsKeepalive(ctx context.Context) {
+	ticker := time.NewTicker(t.wsKeepaliveInterval)
+	defer ticker.Stop()
+	deadline := t.wsKeepaliveInterval * time.Duration(t.wsKeepaliveThreshold)
+	_ = t.ws.SetReadDeadline(time.Now().Add(deadline))
+	originalPongHandler := t.ws.PongHandler()
+	t.ws.SetPongHandler(func(appData string) error {
+		_ = t.ws.SetReadDeadline(time.Now().Add(deadline))
+		return originalPongHandler(appData)
+	})
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			_ = t.ws.WriteControl(websocket.PingMessage, nil, time.Now().Add(time.Second))
+		}
+	}
+}
+
 func (t *Tunnel) Forward(ctx context.Context) error {
 	newCtx, cancel := context.WithCancel(ctx)
-	go t.keepalive(newCtx)
+	if t.guacdKeepaliveInterval > 0 {
+		go t.guacdKeepalive(newCtx)
+	}
+	if t.wsKeepaliveInterval > 0 {
+		go t.wsKeepalive(newCtx)
+	}
 	go t.guacdToWs(newCtx, cancel)
 	go t.wsToGuacd(newCtx, cancel)
 	<-newCtx.Done()
