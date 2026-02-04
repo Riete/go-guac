@@ -36,8 +36,8 @@ type FileRecorder struct {
 	base     string
 }
 
-// connId remove prefixed "$"
-func (f *FileRecorder) connId(connId string) string {
+// ConnId remove prefixed "$"
+func (f *FileRecorder) ConnId(connId string) string {
 	return strings.TrimPrefix(connId, "$")
 }
 
@@ -71,7 +71,7 @@ func (f *FileRecorder) open(connId string) (io.WriteCloser, error) {
 func (f *FileRecorder) Close(connId string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	connId = f.connId(connId)
+	connId = f.ConnId(connId)
 	if closers, exists := f.closers[connId]; exists {
 		for _, c := range closers {
 			_ = c.Close()
@@ -84,7 +84,7 @@ func (f *FileRecorder) Close(connId string) {
 func (f *FileRecorder) Record(connId string, data []byte) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	connId = f.connId(connId)
+	connId = f.ConnId(connId)
 	var err error
 	w, exists := f.writers[connId]
 	if !exists {
@@ -99,7 +99,7 @@ func (f *FileRecorder) Record(connId string, data []byte) {
 }
 
 func (f *FileRecorder) Replay(ctx context.Context, connId string) (chan string, error) {
-	filename := f.filename(f.connId(connId))
+	filename := f.filename(f.ConnId(connId))
 	var r io.ReadCloser
 	var closers []io.Closer
 	var err error
@@ -147,7 +147,15 @@ func (f *FileRecorder) Replay(ctx context.Context, connId string) (chan string, 
 	return ch, nil
 }
 
-func NewFileRecorder(opts ...FileRecorderOption) Recorder {
+func (f *FileRecorder) FilePath(connId string) string {
+	return f.filename(f.ConnId(connId))
+}
+
+func (f *FileRecorder) IsGzipCompressed() bool {
+	return f.compress
+}
+
+func NewFileRecorder(opts ...FileRecorderOption) *FileRecorder {
 	fr := &FileRecorder{
 		writers: make(map[string]io.Writer),
 		closers: make(map[string][]io.Closer),
